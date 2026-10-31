@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Flow of Services · Demo</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 32px 16px;
+        background: #f1f5f9;
+        font-family: system-ui, sans-serif;
+      }
+      main { max-width: 560px; margin: 0 auto; }
+      pre {
+        background: #0f172a; color: #e2e8f0; padding: 12px; border-radius: 8px;
+        font-size: 12px; overflow-x: auto; white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <!-- Así se inserta el componente en cualquier página -->
+      <flow-of-services id="flow" config-src="examples/servicios.json"></flow-of-services>
+
+      <h3>Último evento</h3>
+      <pre id="log">—</pre>
+    </main>
+
+    <script type="module" src="src/flow-of-services.js"></script>
+    <script>
+      const flow = document.getElementById('flow');
+      const log = document.getElementById('log');
+      ['fos:step', 'fos:submit', 'fos:success', 'fos:error'].forEach((name) =>
+        flow.addEventListener(name, (e) => {
+          log.textContent = name + '\n' + JSON.stringify(e.detail, null, 2);
+        })
+      );
+    </script>
+  </body>
+</html>
