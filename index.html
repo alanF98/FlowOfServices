@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -16,6 +16,9 @@
       header { text-align: center; margin-bottom: 28px; }
       header h1 { margin: 0 0 8px; font-size: clamp(1.6rem, 4vw, 2.4rem); }
       header p { margin: 0; color: #64748b; }
+      .lang { display: inline-flex; gap: 4px; margin-top: 16px; padding: 4px; background: #fff; border-radius: 999px; border: 1px solid #e5e7eb; }
+      .lang button { border: 0; background: none; padding: 6px 14px; border-radius: 999px; cursor: pointer; font: inherit; font-weight: 600; color: #64748b; }
+      .lang button[aria-pressed="true"] { background: #4f46e5; color: #fff; }
       details { margin-top: 32px; }
       summary { cursor: pointer; font-weight: 600; }
       pre {
@@ -27,16 +30,20 @@
   <body>
     <main>
       <header>
-        <h1>Tu sitio web, listo en minutos</h1>
-        <p>Responde unas preguntas rápidas y nuestra IA lo construye por ti.</p>
+        <h1 id="headline">Your website, ready in minutes</h1>
+        <p id="subline">Answer a few quick questions and our AI builds it for you.</p>
+        <div class="lang" role="group" aria-label="Language">
+          <button data-lang="en" aria-pressed="true">EN</button>
+          <button data-lang="es" aria-pressed="false">ES</button>
+        </div>
       </header>
 
-      <!-- Así se inserta el componente en cualquier página -->
-      <website-brief id="brief"></website-brief>
+      <!-- This is how you embed the component on any page -->
+      <website-brief id="brief" lang="en"></website-brief>
 
       <details open>
-        <summary>Datos que recibe la página (solo para desarrollo)</summary>
-        <pre id="log">Completa el flujo para ver el resultado…</pre>
+        <summary>Data your page receives (development only)</summary>
+        <pre id="log">Complete the flow to see the result…</pre>
       </details>
     </main>
 
@@ -44,6 +51,21 @@
     <script>
       const brief = document.getElementById('brief');
       const log = document.getElementById('log');
+      const headings = {
+        en: ['Your website, ready in minutes', 'Answer a few quick questions and our AI builds it for you.'],
+        es: ['Tu sitio web, listo en minutos', 'Responde unas preguntas rápidas y nuestra IA lo construye por ti.'],
+      };
+
+      document.querySelectorAll('[data-lang]').forEach((btn) =>
+        btn.addEventListener('click', () => {
+          const lang = btn.dataset.lang;
+          brief.setAttribute('lang', lang);
+          document.documentElement.lang = lang;
+          document.getElementById('headline').textContent = headings[lang][0];
+          document.getElementById('subline').textContent = headings[lang][1];
+          document.querySelectorAll('[data-lang]').forEach((b) => b.setAttribute('aria-pressed', b === btn));
+        })
+      );
 
       brief.addEventListener('wb:step', (e) => {
         log.textContent = 'wb:step → ' + JSON.stringify(e.detail);
@@ -57,9 +79,9 @@
           photos: assets.photos.map((p) => ({ ...p, dataUrl: p.dataUrl.slice(0, 40) + '…' })),
         };
         log.textContent =
-          'PROMPT PARA LA IA\n\n' + prompt +
+          'AI PROMPT\n\n' + prompt +
           '\n\nBRIEF\n\n' + JSON.stringify(data, null, 2) +
-          '\n\nARCHIVOS\n\n' + JSON.stringify(short, null, 2);
+          '\n\nFILES\n\n' + JSON.stringify(short, null, 2);
       });
     </script>
   </body>

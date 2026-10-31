@@ -3,6 +3,7 @@
 Componente web (`<website-brief>`) para insertar en una página que vende sitios web (pensado para **mycroi.com**). Le hace al cliente todas las preguntas necesarias para que una IA genere su sitio: tipo de negocio, nombre, objetivo, logo, colores, estilo, secciones, fotos, notas y contacto.
 
 Solo front-end, sin dependencias ni compilación. Estilos aislados con Shadow DOM.
+**Bilingüe:** inglés por defecto y español con `lang="es"`.
 
 ## El flujo
 
@@ -43,11 +44,20 @@ Abre la URL que muestre. Hace falta un servidor porque los módulos JS no funcio
 ## Insertarlo en una página
 
 ```html
-<website-brief></website-brief>
+<website-brief></website-brief>             <!-- inglés -->
+<website-brief lang="es"></website-brief>   <!-- español -->
 <script type="module" src="website-brief.js"></script>
 ```
 
 Solo necesitas copiar `src/website-brief.js`.
+
+### Idioma
+
+- `lang="en"` (por defecto) o `lang="es"`.
+- Se puede cambiar en vivo, sin perder las respuestas: `brief.setAttribute('lang', 'es')`. Sirve para un selector de idioma en mycroi.com (la demo trae uno).
+- El *prompt* para la IA sale en el mismo idioma y le pide construir el sitio en ese idioma.
+- Para agregar otro idioma, copia el bloque `LOCALES.en` en `src/website-brief.js` y tradúcelo.
+- Los identificadores del JSON son siempre en inglés (`beauty`, `booking`, `playful`…), sin importar el idioma.
 
 ### Recibir el resultado
 
@@ -75,26 +85,27 @@ Se hace un `POST` con el JSON completo. `e.preventDefault()` en `wb:submit` canc
 | `wb:success` | `{ payload, response }` tras enviar al `endpoint` |
 | `wb:error` | `{ payload, error }` si falla el envío |
 
-Atributos: `endpoint`, `config-src`, `no-persist` (no guarda el progreso).
+Atributos: `lang`, `endpoint`, `config-src`, `no-persist` (no guarda el progreso).
 Propiedades y métodos: `el.config`, `el.answers`, `el.reset()`.
 
-Ejemplo del *prompt* generado:
+Ejemplo del *prompt* generado (en inglés):
 
 ```
-Crea un sitio web completo en español para "Studio Bella", un negocio de belleza o spa.
-Descripción / eslogan: "Uñas y belleza con estilo".
-Objetivo principal del sitio: que agenden citas. El botón principal debe decir "Agenda tu cita".
-Logo: usa el logo proporcionado.
-Colores: primario #c026d3, secundario #0d9488, acento #0d9488, fondo #ffffff, texto #111827.
-Estilo visual: divertido (alegre, colorido, cercano).
-Secciones: Inicio, Servicios, Galería, Precios, Reservas, Blog, Contacto.
-Fotos: usa fotos de stock profesionales relacionadas con belleza o spa.
-El sitio debe ser responsive, rápido, accesible y optimizado para SEO local.
+Create a complete, professional website in English for "Studio Bella".
+Business type: beauty or spa.
+Tagline: "Nails and beauty with style".
+Main goal: get bookings. The main call-to-action button should say "Book now".
+Logo: use the logo provided by the client.
+Colors: primary #c026d3, secondary #0d9488, accent #0d9488, background #ffffff, text #111827.
+Visual style: playful (cheerful, colorful, friendly).
+Sections: Home, Services, Gallery, Pricing, Booking, Contact.
+Photos: use professional stock photos related to beauty or spa.
+The site must be responsive, fast, accessible and optimized for local SEO.
 ```
 
 ## Personalizar
 
-Todo lo que ve el cliente está en `DEFAULT_CONFIG` (al inicio de `src/website-brief.js`) y se puede sobrescribir sin tocar el código:
+La estructura (opciones, íconos, colores) está en `BASE` y los textos de cada idioma en `LOCALES`, al inicio de `src/website-brief.js`. Todo se puede sobrescribir sin tocar el código:
 
 ```js
 document.querySelector('website-brief').config = {
@@ -104,7 +115,8 @@ document.querySelector('website-brief').config = {
   palettes: [...],        // { id, label, colors: [primario, secundario, acento, fondo, texto] }
   styles: [...],          // { id, label, description, font, weight, radius, align, upper? }
   pages: [...],           // { id, label, locked? }
-  copy: { business: { title: '...' }, submit: 'Quiero mi web' }, // cualquier texto
+  copy: { business: { title: '...' }, submit: 'Get my website' },  // cualquier texto
+  prompt: { outro: '...' },                                         // plantillas del prompt
 };
 ```
 

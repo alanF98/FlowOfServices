@@ -16,7 +16,8 @@
  *   <website-brief config-src="config.json">    archivo JSON
  *   <website-brief><script type="application/json">{...}</script></website-brief>
  *
- * Atributos: endpoint="https://..." (POST JSON al terminar), no-persist (no guarda progreso).
+ * Atributos: lang="en" | "es" (idioma, inglés por defecto; se puede cambiar en vivo),
+ *            endpoint="https://..." (POST JSON al terminar), no-persist (no guarda progreso).
  *
  * Eventos:
  *   wb:step     { step, index }
@@ -25,105 +26,359 @@
  *   wb:error    { payload, error }
  */
 
-const DEFAULT_CONFIG = {
-  endpoint: null,
-  storageKey: 'website-brief:v1',
-  steps: ['business', 'name', 'goal', 'logo', 'colors', 'style', 'pages', 'photos', 'notes', 'contact'],
-  secondsPerStep: 12,
-
+// Estructura (independiente del idioma). Los textos viven en LOCALES.
+const BASE = {
   businessTypes: [
-    { id: 'restaurante', icon: '🍽️', label: 'Restaurante o café', pages: ['menu', 'galeria', 'testimonios', 'reservas'], examples: ['Comida casera hecha con amor', 'El mejor café de la ciudad'] },
-    { id: 'belleza', icon: '💅', label: 'Belleza o spa', pages: ['servicios', 'precios', 'galeria', 'reservas'], examples: ['Uñas y belleza con estilo', 'Tu momento de relajarte'] },
-    { id: 'tienda', icon: '🛍️', label: 'Tienda o productos', pages: ['tienda', 'sobre', 'testimonios', 'faq'], examples: ['Productos únicos hechos a mano', 'Todo lo que necesitas, a domicilio'] },
-    { id: 'profesional', icon: '💼', label: 'Servicios profesionales', pages: ['servicios', 'sobre', 'testimonios', 'faq'], examples: ['Asesoría contable para emprendedores', 'Soluciones legales claras y rápidas'] },
-    { id: 'salud', icon: '🩺', label: 'Salud o bienestar', pages: ['servicios', 'sobre', 'testimonios', 'reservas'], examples: ['Cuidamos de ti y tu familia', 'Entrena, mejora, vive mejor'] },
-    { id: 'hogar', icon: '🔨', label: 'Construcción u hogar', pages: ['servicios', 'galeria', 'testimonios', 'precios'], examples: ['Remodelaciones de calidad, a tiempo', 'Limpieza profesional para tu hogar'] },
-    { id: 'creativo', icon: '🎨', label: 'Creativo o portafolio', pages: ['galeria', 'sobre', 'servicios', 'testimonios'], examples: ['Fotografía que cuenta historias', 'Diseño que hace crecer marcas'] },
-    { id: 'eventos', icon: '🎉', label: 'Eventos', pages: ['servicios', 'galeria', 'precios', 'testimonios'], examples: ['Eventos inolvidables de principio a fin', 'Celebra a lo grande'] },
-    { id: 'otro', icon: '✏️', label: 'Otro', pages: ['servicios', 'sobre', 'testimonios'], examples: [] },
+    { id: 'restaurant', icon: '🍽️', pages: ['menu', 'gallery', 'testimonials', 'booking'] },
+    { id: 'beauty', icon: '💅', pages: ['services', 'pricing', 'gallery', 'booking'] },
+    { id: 'retail', icon: '🛍️', pages: ['shop', 'about', 'testimonials', 'faq'] },
+    { id: 'professional', icon: '💼', pages: ['services', 'about', 'testimonials', 'faq'] },
+    { id: 'health', icon: '🩺', pages: ['services', 'about', 'testimonials', 'booking'] },
+    { id: 'home', icon: '🔨', pages: ['services', 'gallery', 'testimonials', 'pricing'] },
+    { id: 'creative', icon: '🎨', pages: ['gallery', 'about', 'services', 'testimonials'] },
+    { id: 'events', icon: '🎉', pages: ['services', 'gallery', 'pricing', 'testimonials'] },
+    { id: 'other', icon: '✏️', pages: ['services', 'about', 'testimonials'] },
   ],
-
   goals: [
-    { id: 'contacto', icon: '📞', label: 'Que me llamen o escriban', cta: 'Contáctanos', page: 'contacto' },
-    { id: 'citas', icon: '📅', label: 'Que agenden citas', cta: 'Agenda tu cita', page: 'reservas' },
-    { id: 'vender', icon: '🛒', label: 'Vender en línea', cta: 'Compra ahora', page: 'tienda' },
-    { id: 'mostrar', icon: '🖼️', label: 'Mostrar mi trabajo', cta: 'Ver trabajos', page: 'galeria' },
-    { id: 'informar', icon: '📣', label: 'Dar a conocer mi negocio', cta: 'Conócenos', page: 'sobre' },
+    { id: 'contact', icon: '📞', page: 'contact' },
+    { id: 'booking', icon: '📅', page: 'booking' },
+    { id: 'sell', icon: '🛒', page: 'shop' },
+    { id: 'showcase', icon: '🖼️', page: 'gallery' },
+    { id: 'awareness', icon: '📣', page: 'about' },
   ],
-
   // [primario, secundario, acento, fondo, texto]
   palettes: [
-    { id: 'oceano', label: 'Océano', colors: ['#0284c7', '#0c4a6e', '#f59e0b', '#ffffff', '#0f172a'] },
-    { id: 'bosque', label: 'Bosque', colors: ['#15803d', '#14532d', '#eab308', '#fafaf5', '#1c1917'] },
-    { id: 'atardecer', label: 'Atardecer', colors: ['#ea580c', '#9a3412', '#facc15', '#fffbf5', '#1c1917'] },
-    { id: 'rosa', label: 'Rosa', colors: ['#db2777', '#831843', '#f9a8d4', '#fff7fb', '#1f1020'] },
-    { id: 'lavanda', label: 'Lavanda', colors: ['#7c3aed', '#4c1d95', '#22d3ee', '#faf8ff', '#1e1b2e'] },
-    { id: 'lujo', label: 'Negro y oro', colors: ['#1c1917', '#a8803f', '#c8a25a', '#faf8f5', '#1c1917'] },
-    { id: 'tierra', label: 'Tierra', colors: ['#a16207', '#57534e', '#65a30d', '#fdfaf3', '#292524'] },
-    { id: 'noche', label: 'Noche', colors: ['#818cf8', '#c7d2fe', '#f472b6', '#0f172a', '#f1f5f9'] },
+    { id: 'ocean', colors: ['#0284c7', '#0c4a6e', '#f59e0b', '#ffffff', '#0f172a'] },
+    { id: 'forest', colors: ['#15803d', '#14532d', '#eab308', '#fafaf5', '#1c1917'] },
+    { id: 'sunset', colors: ['#ea580c', '#9a3412', '#facc15', '#fffbf5', '#1c1917'] },
+    { id: 'pink', colors: ['#db2777', '#831843', '#f9a8d4', '#fff7fb', '#1f1020'] },
+    { id: 'lavender', colors: ['#7c3aed', '#4c1d95', '#22d3ee', '#faf8ff', '#1e1b2e'] },
+    { id: 'luxury', colors: ['#1c1917', '#a8803f', '#c8a25a', '#faf8f5', '#1c1917'] },
+    { id: 'earth', colors: ['#a16207', '#57534e', '#65a30d', '#fdfaf3', '#292524'] },
+    { id: 'night', colors: ['#818cf8', '#c7d2fe', '#f472b6', '#0f172a', '#f1f5f9'] },
   ],
-
   styles: [
-    { id: 'moderno', label: 'Moderno', description: 'Limpio, simple, mucho espacio', font: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif', weight: 700, radius: 10, align: 'left' },
-    { id: 'elegante', label: 'Elegante', description: 'Sofisticado, refinado, de lujo', font: '"Didot", "Bodoni MT", Georgia, serif', weight: 400, radius: 0, align: 'center', tracking: '.02em' },
-    { id: 'divertido', label: 'Divertido', description: 'Alegre, colorido, cercano', font: '"Trebuchet MS", "Avenir Next Rounded", system-ui, sans-serif', weight: 800, radius: 24, align: 'center' },
-    { id: 'profesional', label: 'Profesional', description: 'Serio, confiable, corporativo', font: '"Helvetica Neue", Arial, sans-serif', weight: 600, radius: 4, align: 'left' },
-    { id: 'audaz', label: 'Audaz', description: 'Llamativo, fuerte, con impacto', font: '"Arial Black", "Helvetica Neue", Impact, sans-serif', weight: 900, radius: 0, align: 'left', upper: true },
-    { id: 'natural', label: 'Natural', description: 'Cálido, orgánico, artesanal', font: 'Georgia, "Times New Roman", serif', weight: 600, radius: 18, align: 'center' },
+    { id: 'modern', font: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif', weight: 700, radius: 10, align: 'left' },
+    { id: 'elegant', font: '"Didot", "Bodoni MT", Georgia, serif', weight: 400, radius: 0, align: 'center', tracking: '.02em' },
+    { id: 'playful', font: '"Trebuchet MS", "Avenir Next Rounded", system-ui, sans-serif', weight: 800, radius: 24, align: 'center' },
+    { id: 'professional', font: '"Helvetica Neue", Arial, sans-serif', weight: 600, radius: 4, align: 'left' },
+    { id: 'bold', font: '"Arial Black", "Helvetica Neue", Impact, sans-serif', weight: 900, radius: 0, align: 'left', upper: true },
+    { id: 'natural', font: 'Georgia, "Times New Roman", serif', weight: 600, radius: 18, align: 'center' },
   ],
-
   pages: [
-    { id: 'inicio', label: 'Inicio', locked: true },
-    { id: 'servicios', label: 'Servicios' },
-    { id: 'menu', label: 'Menú' },
-    { id: 'tienda', label: 'Tienda' },
-    { id: 'galeria', label: 'Galería' },
-    { id: 'sobre', label: 'Sobre nosotros' },
-    { id: 'testimonios', label: 'Testimonios' },
-    { id: 'precios', label: 'Precios' },
-    { id: 'reservas', label: 'Reservas' },
-    { id: 'faq', label: 'Preguntas frecuentes' },
-    { id: 'blog', label: 'Blog' },
-    { id: 'contacto', label: 'Contacto' },
+    { id: 'home', locked: true },
+    { id: 'services' },
+    { id: 'menu' },
+    { id: 'shop' },
+    { id: 'gallery' },
+    { id: 'about' },
+    { id: 'testimonials' },
+    { id: 'pricing' },
+    { id: 'booking' },
+    { id: 'faq' },
+    { id: 'blog' },
+    { id: 'contact' },
   ],
+};
 
-  copy: {
-    business: { title: '¿Qué tipo de negocio tienes?', sub: 'Empecemos por lo fácil: toca una opción.' },
-    name: { title: '¿Cómo se llama tu negocio?', sub: 'Así aparecerá en tu sitio. Puedes cambiarlo cuando quieras.' },
-    goal: { title: '¿Qué quieres que logre la web de {name}?', sub: 'Elige lo más importante. Diseñaremos todo alrededor de esto.' },
-    logo: { title: '¿Tienes logo?', sub: 'Si lo subes, tomamos sus colores automáticamente.' },
-    colors: { title: '¿Qué colores te gustan?', sub: 'Mira cómo cambia la vista previa. No lo pienses mucho.' },
-    style: { title: '¿Qué estilo va más con {name}?', sub: 'Confía en tu primera impresión.' },
-    pages: { title: '¿Qué secciones necesitas?', sub: 'Ya marcamos las recomendadas para ti. Ajusta solo si quieres.' },
-    photos: { title: '¿Tienes fotos de tu negocio?', sub: 'Las fotos reales generan confianza. Si no tienes, usamos imágenes profesionales.' },
-    notes: { title: '¿Algo más que debamos saber?', sub: 'Opcional. Una web que te guste, tus servicios, horarios, ideas…' },
-    contact: { title: '¡Último paso! ¿A dónde te enviamos tu sitio?', sub: 'Sin compromiso. Solo lo usamos para enviarte tu web.' },
-    done: { title: '¡Listo, {contactName}!', sub: 'Ya tenemos todo para crear el sitio de {name}. Te lo enviaremos muy pronto.' },
-    next: 'Continuar',
-    back: 'Atrás',
-    skip: 'Saltar',
-    decideForMe: 'Decide por mí',
-    submit: 'Crear mi sitio web',
-    sending: 'Enviando…',
-    saveAndReturn: 'Guardar y volver',
-    restart: 'Empezar otro',
-    resumed: 'Retomamos donde lo dejaste.',
-    startOver: 'Empezar de nuevo',
-    preview: 'Vista previa de tu sitio',
-    showPreview: 'Ver cómo va tu sitio',
-    hidePreview: 'Ocultar vista previa',
-    lastStep: 'Último paso',
-    remaining: '≈ {n} min',
-    remainingSeconds: 'Menos de 1 min',
-    yourAnswers: 'Tus respuestas',
-    edit: 'Editar',
-    errorName: 'Escribe el nombre de tu negocio para continuar.',
-    errorOther: 'Cuéntanos qué tipo de negocio es.',
-    errorContact: 'Necesitamos tu nombre y un correo o WhatsApp para enviarte tu sitio.',
-    errorEmail: 'Revisa tu correo, parece que tiene un error.',
-    errorSubmit: 'No pudimos enviar tu solicitud. Inténtalo de nuevo.',
+const LOCALES = {
+  en: {
+    business: {
+      restaurant: { label: 'Restaurant or café', examples: ['Homemade food made with love', 'The best coffee in town'] },
+      beauty: { label: 'Beauty or spa', examples: ['Nails and beauty with style', 'Your time to relax'] },
+      retail: { label: 'Store or products', examples: ['Unique handmade products', 'Everything you need, delivered'] },
+      professional: { label: 'Professional services', examples: ['Accounting made simple for small businesses', 'Clear, fast legal help'] },
+      health: { label: 'Health or wellness', examples: ['Caring for you and your family', 'Train better, live better'] },
+      home: { label: 'Construction or home', examples: ['Quality remodeling, on time', 'Professional home cleaning'] },
+      creative: { label: 'Creative or portfolio', examples: ['Photography that tells stories', 'Design that grows brands'] },
+      events: { label: 'Events', examples: ['Unforgettable events, start to finish', 'Celebrate in style'] },
+      other: { label: 'Other', examples: [] },
+    },
+    goals: {
+      contact: { label: 'Get calls and messages', cta: 'Contact us' },
+      booking: { label: 'Get bookings', cta: 'Book now' },
+      sell: { label: 'Sell online', cta: 'Shop now' },
+      showcase: { label: 'Show off my work', cta: 'See our work' },
+      awareness: { label: 'Get my business known', cta: 'Learn more' },
+    },
+    palettes: { ocean: 'Ocean', forest: 'Forest', sunset: 'Sunset', pink: 'Pink', lavender: 'Lavender', luxury: 'Black & gold', earth: 'Earth', night: 'Night' },
+    styles: {
+      modern: { label: 'Modern', description: 'Clean, simple, airy' },
+      elegant: { label: 'Elegant', description: 'Sophisticated, refined, upscale' },
+      playful: { label: 'Playful', description: 'Cheerful, colorful, friendly' },
+      professional: { label: 'Professional', description: 'Serious, trustworthy, corporate' },
+      bold: { label: 'Bold', description: 'Striking, strong, high-impact' },
+      natural: { label: 'Natural', description: 'Warm, organic, handcrafted' },
+    },
+    pages: {
+      home: 'Home', services: 'Services', menu: 'Menu', shop: 'Shop', gallery: 'Gallery', about: 'About us',
+      testimonials: 'Testimonials', pricing: 'Pricing', booking: 'Booking', faq: 'FAQ', blog: 'Blog', contact: 'Contact',
+    },
+    copy: {
+      business: { title: 'What kind of business do you have?', sub: "Let's start easy — just tap one." },
+      name: { title: "What's your business called?", sub: "This is how it'll appear on your site. You can change it anytime." },
+      goal: { title: 'What should your website do for {name}?', sub: "Pick the most important one. We'll design everything around it." },
+      logo: { title: 'Do you have a logo?', sub: "Upload it and we'll pick up its colors automatically." },
+      colors: { title: 'Which colors do you like?', sub: "Watch the preview change. Don't overthink it." },
+      style: { title: 'Which style fits {name} best?', sub: 'Go with your first instinct.' },
+      pages: { title: 'Which sections do you need?', sub: "We've already picked the ones we recommend. Adjust only if you want." },
+      photos: { title: 'Do you have photos of your business?', sub: "Real photos build trust. No photos? We'll use professional images." },
+      notes: { title: 'Anything else we should know?', sub: 'Optional. A website you like, your services, hours, ideas…' },
+      contact: { title: 'Last step! Where should we send your website?', sub: "No commitment. We'll only use this to send you your site." },
+      done: { title: "You're all set, {contactName}!", sub: "We have everything we need to build {name}'s website. We'll send it to you very soon." },
+      next: 'Continue',
+      back: 'Back',
+      skip: 'Skip',
+      decideForMe: 'Decide for me',
+      submit: 'Build my website',
+      sending: 'Sending…',
+      saveAndReturn: 'Save and go back',
+      restart: 'Start another',
+      resumed: 'Picked up where you left off.',
+      startOver: 'Start over',
+      preview: 'Your website preview',
+      showPreview: 'See your website so far',
+      hidePreview: 'Hide preview',
+      lastStep: 'Last step',
+      remaining: '≈ {n} min',
+      remainingSeconds: 'Under 1 min',
+      yourAnswers: 'Your answers',
+      edit: 'Edit',
+      optional: '(optional)',
+      or: 'or',
+      yourBusiness: 'your business',
+      otherLabel: 'What kind of business is it?',
+      otherPlaceholder: 'E.g. auto repair shop, music school…',
+      nameLabel: 'Business name',
+      namePlaceholder: 'E.g. Luna Café',
+      taglineLabel: 'Describe it in one sentence',
+      taglinePlaceholder: 'What you do and who you do it for',
+      noIdeas: 'Need ideas? Tap one:',
+      logoUpload: 'Upload your logo',
+      logoHint: 'Drag it here or tap to choose · PNG, JPG or SVG',
+      logoCreate: "I don't have one — make me one",
+      logoText: 'Just use my business name',
+      logoGreat: 'Looks great!',
+      logoColors: 'We picked up these colors from your logo:',
+      logoChange: 'Change logo',
+      logoAlt: 'Your logo',
+      fromLogo: 'From my logo',
+      customColors: 'Pick my own colors',
+      colorLabels: ['Primary', 'Secondary', 'Accent'],
+      pagesReset: 'Back to recommended',
+      photosUpload: 'Upload your photos',
+      photosMore: 'Add more photos',
+      photosHint: 'Your place, products, team, work… up to 10',
+      stock: 'Use professional photos',
+      stockHint: "We'll pick quality images for your business",
+      removePhoto: 'Remove photo',
+      urlLabel: 'A website you like',
+      notesLabel: 'Tell us anything',
+      notesPlaceholder: 'Your services and prices, hours, address, social media, ideas…',
+      contactName: 'Your name',
+      contactEmail: 'Email',
+      emailPlaceholder: 'you@email.com',
+      contactPhone: 'Phone or WhatsApp',
+      phoneOptional: '(optional if you leave your email)',
+      domain: 'Already have a domain?',
+      domainPlaceholder: 'mybusiness.com',
+      trust: '🔒 Your information is safe. We never share it.',
+      review: {
+        business: 'Business', name: 'Name', goal: 'Goal', logo: 'Logo', colors: 'Colors', style: 'Style',
+        pages: 'Sections', photos: 'Photos', uploaded: 'Uploaded', createOne: 'Make one', nameOnly: 'Name only', stock: 'Professional',
+      },
+      mockName: 'Your business',
+      mockTagline: 'What makes your business special goes here',
+      mockCta: 'Contact us',
+      errorName: 'Enter your business name to continue.',
+      errorOther: 'Tell us what kind of business it is.',
+      errorContact: 'We need your name and an email or phone number to send you your website.',
+      errorEmail: 'Please check your email — it looks like there’s a typo.',
+      errorSubmit: "We couldn't send your request. Please try again.",
+    },
+    prompt: {
+      intro: 'Create a complete, professional website in English for "{name}".',
+      type: 'Business type: {type}.',
+      tagline: 'Tagline: "{tagline}".',
+      goal: 'Main goal: {goal}. The main call-to-action button should say "{cta}".',
+      goalAuto: 'Main goal: choose the most suitable one for this type of business.',
+      logoProvided: 'Logo: use the logo provided by the client.',
+      logoCreate: "Logo: the client doesn't have one; create a simple, professional logo.",
+      logoText: 'Logo: use the business name as a text logo.',
+      colors: 'Colors: primary {primary}, secondary {secondary}, accent {accent}, background {background}, text {text}.',
+      colorsAuto: 'Colors: choose a palette that suits the business type and style.',
+      style: 'Visual style: {style} ({description}).',
+      styleAuto: 'Visual style: choose the one that best suits the business.',
+      pages: 'Sections: {pages}.',
+      photosProvided: 'Photos: use the photos provided by the client.',
+      photosStock: 'Photos: use professional stock photos related to {type}.',
+      url: 'Reference website the client likes: {url}',
+      notes: 'Client notes: {notes}',
+      domain: 'Domain: {domain}',
+      outro: 'The site must be responsive, fast, accessible and optimized for local SEO.',
+      fallbackType: 'the business',
+    },
+  },
+
+  es: {
+    business: {
+      restaurant: { label: 'Restaurante o café', examples: ['Comida casera hecha con amor', 'El mejor café de la ciudad'] },
+      beauty: { label: 'Belleza o spa', examples: ['Uñas y belleza con estilo', 'Tu momento de relajarte'] },
+      retail: { label: 'Tienda o productos', examples: ['Productos únicos hechos a mano', 'Todo lo que necesitas, a domicilio'] },
+      professional: { label: 'Servicios profesionales', examples: ['Asesoría contable para emprendedores', 'Soluciones legales claras y rápidas'] },
+      health: { label: 'Salud o bienestar', examples: ['Cuidamos de ti y tu familia', 'Entrena, mejora, vive mejor'] },
+      home: { label: 'Construcción u hogar', examples: ['Remodelaciones de calidad, a tiempo', 'Limpieza profesional para tu hogar'] },
+      creative: { label: 'Creativo o portafolio', examples: ['Fotografía que cuenta historias', 'Diseño que hace crecer marcas'] },
+      events: { label: 'Eventos', examples: ['Eventos inolvidables de principio a fin', 'Celebra a lo grande'] },
+      other: { label: 'Otro', examples: [] },
+    },
+    goals: {
+      contact: { label: 'Que me llamen o escriban', cta: 'Contáctanos' },
+      booking: { label: 'Que agenden citas', cta: 'Agenda tu cita' },
+      sell: { label: 'Vender en línea', cta: 'Compra ahora' },
+      showcase: { label: 'Mostrar mi trabajo', cta: 'Ver trabajos' },
+      awareness: { label: 'Dar a conocer mi negocio', cta: 'Conócenos' },
+    },
+    palettes: { ocean: 'Océano', forest: 'Bosque', sunset: 'Atardecer', pink: 'Rosa', lavender: 'Lavanda', luxury: 'Negro y oro', earth: 'Tierra', night: 'Noche' },
+    styles: {
+      modern: { label: 'Moderno', description: 'Limpio, simple, mucho espacio' },
+      elegant: { label: 'Elegante', description: 'Sofisticado, refinado, de lujo' },
+      playful: { label: 'Divertido', description: 'Alegre, colorido, cercano' },
+      professional: { label: 'Profesional', description: 'Serio, confiable, corporativo' },
+      bold: { label: 'Audaz', description: 'Llamativo, fuerte, con impacto' },
+      natural: { label: 'Natural', description: 'Cálido, orgánico, artesanal' },
+    },
+    pages: {
+      home: 'Inicio', services: 'Servicios', menu: 'Menú', shop: 'Tienda', gallery: 'Galería', about: 'Sobre nosotros',
+      testimonials: 'Testimonios', pricing: 'Precios', booking: 'Reservas', faq: 'Preguntas frecuentes', blog: 'Blog', contact: 'Contacto',
+    },
+    copy: {
+      business: { title: '¿Qué tipo de negocio tienes?', sub: 'Empecemos por lo fácil: toca una opción.' },
+      name: { title: '¿Cómo se llama tu negocio?', sub: 'Así aparecerá en tu sitio. Puedes cambiarlo cuando quieras.' },
+      goal: { title: '¿Qué quieres que logre la web de {name}?', sub: 'Elige lo más importante. Diseñaremos todo alrededor de esto.' },
+      logo: { title: '¿Tienes logo?', sub: 'Si lo subes, tomamos sus colores automáticamente.' },
+      colors: { title: '¿Qué colores te gustan?', sub: 'Mira cómo cambia la vista previa. No lo pienses mucho.' },
+      style: { title: '¿Qué estilo va más con {name}?', sub: 'Confía en tu primera impresión.' },
+      pages: { title: '¿Qué secciones necesitas?', sub: 'Ya marcamos las recomendadas para ti. Ajusta solo si quieres.' },
+      photos: { title: '¿Tienes fotos de tu negocio?', sub: 'Las fotos reales generan confianza. Si no tienes, usamos imágenes profesionales.' },
+      notes: { title: '¿Algo más que debamos saber?', sub: 'Opcional. Una web que te guste, tus servicios, horarios, ideas…' },
+      contact: { title: '¡Último paso! ¿A dónde te enviamos tu sitio?', sub: 'Sin compromiso. Solo lo usamos para enviarte tu web.' },
+      done: { title: '¡Listo, {contactName}!', sub: 'Ya tenemos todo para crear el sitio de {name}. Te lo enviaremos muy pronto.' },
+      next: 'Continuar',
+      back: 'Atrás',
+      skip: 'Saltar',
+      decideForMe: 'Decide por mí',
+      submit: 'Crear mi sitio web',
+      sending: 'Enviando…',
+      saveAndReturn: 'Guardar y volver',
+      restart: 'Empezar otro',
+      resumed: 'Retomamos donde lo dejaste.',
+      startOver: 'Empezar de nuevo',
+      preview: 'Vista previa de tu sitio',
+      showPreview: 'Ver cómo va tu sitio',
+      hidePreview: 'Ocultar vista previa',
+      lastStep: 'Último paso',
+      remaining: '≈ {n} min',
+      remainingSeconds: 'Menos de 1 min',
+      yourAnswers: 'Tus respuestas',
+      edit: 'Editar',
+      optional: '(opcional)',
+      or: 'o',
+      yourBusiness: 'tu negocio',
+      otherLabel: '¿Qué tipo de negocio es?',
+      otherPlaceholder: 'Ej. taller mecánico, escuela de música…',
+      nameLabel: 'Nombre del negocio',
+      namePlaceholder: 'Ej. Luna Café',
+      taglineLabel: 'Descríbelo en una frase',
+      taglinePlaceholder: 'Lo que haces y para quién',
+      noIdeas: '¿Sin ideas? Toca una:',
+      logoUpload: 'Sube tu logo',
+      logoHint: 'Arrastra aquí o toca para elegir · PNG, JPG o SVG',
+      logoCreate: 'No tengo, créenme uno',
+      logoText: 'Usen solo el nombre',
+      logoGreat: '¡Se ve genial!',
+      logoColors: 'Tomamos estos colores de tu logo:',
+      logoChange: 'Cambiar logo',
+      logoAlt: 'Tu logo',
+      fromLogo: 'De mi logo',
+      customColors: 'Elegir mis colores',
+      colorLabels: ['Principal', 'Secundario', 'Acento'],
+      pagesReset: 'Volver a las recomendadas',
+      photosUpload: 'Sube tus fotos',
+      photosMore: 'Agregar más fotos',
+      photosHint: 'Local, productos, equipo, trabajos… hasta 10',
+      stock: 'Usen fotos profesionales',
+      stockHint: 'Elegimos imágenes de calidad para tu negocio',
+      removePhoto: 'Quitar foto',
+      urlLabel: 'Una web que te guste',
+      notesLabel: 'Cuéntanos lo que quieras',
+      notesPlaceholder: 'Tus servicios y precios, horarios, dirección, redes sociales, ideas…',
+      contactName: 'Tu nombre',
+      contactEmail: 'Correo electrónico',
+      emailPlaceholder: 'tu@correo.com',
+      contactPhone: 'WhatsApp',
+      phoneOptional: '(opcional si dejas tu correo)',
+      domain: '¿Ya tienes dominio?',
+      domainPlaceholder: 'minegocio.com',
+      trust: '🔒 Tus datos están seguros. Nunca los compartimos.',
+      review: {
+        business: 'Negocio', name: 'Nombre', goal: 'Objetivo', logo: 'Logo', colors: 'Colores', style: 'Estilo',
+        pages: 'Secciones', photos: 'Fotos', uploaded: 'Subido', createOne: 'Crear uno', nameOnly: 'Solo el nombre', stock: 'Profesionales',
+      },
+      mockName: 'Tu negocio',
+      mockTagline: 'Aquí va lo que hace especial a tu negocio',
+      mockCta: 'Contáctanos',
+      errorName: 'Escribe el nombre de tu negocio para continuar.',
+      errorOther: 'Cuéntanos qué tipo de negocio es.',
+      errorContact: 'Necesitamos tu nombre y un correo o WhatsApp para enviarte tu sitio.',
+      errorEmail: 'Revisa tu correo, parece que tiene un error.',
+      errorSubmit: 'No pudimos enviar tu solicitud. Inténtalo de nuevo.',
+    },
+    prompt: {
+      intro: 'Crea un sitio web completo y profesional en español para "{name}".',
+      type: 'Tipo de negocio: {type}.',
+      tagline: 'Descripción / eslogan: "{tagline}".',
+      goal: 'Objetivo principal: {goal}. El botón principal debe decir "{cta}".',
+      goalAuto: 'Objetivo principal: elige el más adecuado para este tipo de negocio.',
+      logoProvided: 'Logo: usa el logo proporcionado por el cliente.',
+      logoCreate: 'Logo: el cliente no tiene logo; crea un logotipo simple y profesional.',
+      logoText: 'Logo: usa el nombre del negocio como logotipo de texto.',
+      colors: 'Colores: primario {primary}, secundario {secondary}, acento {accent}, fondo {background}, texto {text}.',
+      colorsAuto: 'Colores: elige una paleta apropiada para el tipo de negocio y el estilo.',
+      style: 'Estilo visual: {style} ({description}).',
+      styleAuto: 'Estilo visual: elige el más adecuado para el negocio.',
+      pages: 'Secciones: {pages}.',
+      photosProvided: 'Fotos: usa las fotos proporcionadas por el cliente.',
+      photosStock: 'Fotos: usa fotos de stock profesionales relacionadas con {type}.',
+      url: 'Sitio de referencia que le gusta al cliente: {url}',
+      notes: 'Notas del cliente: {notes}',
+      domain: 'Dominio: {domain}',
+      outro: 'El sitio debe ser responsive, rápido, accesible y optimizado para SEO local.',
+      fallbackType: 'el negocio',
+    },
   },
 };
+
+/** Configuración por defecto en el idioma indicado (estructura + textos). */
+const buildDefaults = (lang) => {
+  const t = LOCALES[lang] || LOCALES.en;
+  return {
+    lang: LOCALES[lang] ? lang : 'en',
+    endpoint: null,
+    storageKey: 'website-brief:v2',
+    steps: ['business', 'name', 'goal', 'logo', 'colors', 'style', 'pages', 'photos', 'notes', 'contact'],
+    secondsPerStep: 12,
+    businessTypes: BASE.businessTypes.map((b) => ({ ...b, ...t.business[b.id] })),
+    goals: BASE.goals.map((g) => ({ ...g, ...t.goals[g.id] })),
+    palettes: BASE.palettes.map((p) => ({ ...p, label: t.palettes[p.id] })),
+    styles: BASE.styles.map((s) => ({ ...s, ...t.styles[s.id] })),
+    pages: BASE.pages.map((p) => ({ ...p, label: t.pages[p.id] })),
+    copy: t.copy,
+    prompt: t.prompt,
+  };
+};
+
+const DEFAULT_CONFIG = buildDefaults('en');
 
 const STYLES = `
   :host {
@@ -459,10 +714,11 @@ async function extractColors(dataUrl) {
   }
 }
 
-const mergeConfig = (custom = {}) => {
-  const merged = { ...DEFAULT_CONFIG, ...custom, copy: { ...DEFAULT_CONFIG.copy } };
+const mergeConfig = (custom = {}, lang = 'en') => {
+  const base = buildDefaults(custom.lang || lang);
+  const merged = { ...base, ...custom, lang: base.lang, copy: { ...base.copy }, prompt: { ...base.prompt, ...(custom.prompt || {}) } };
   Object.entries(custom.copy || {}).forEach(([k, v]) => {
-    merged.copy[k] = typeof v === 'object' ? { ...DEFAULT_CONFIG.copy[k], ...v } : v;
+    merged.copy[k] = v && typeof v === 'object' && !Array.isArray(v) ? { ...base.copy[k], ...v } : v;
   });
   return merged;
 };
@@ -490,6 +746,7 @@ class WebsiteBrief extends HTMLElement {
     this.attachShadow({ mode: 'open' });
     this._config = mergeConfig();
     this._customConfig = null;
+    this._fileConfig = null;
     this._resetState();
     this.shadowRoot.addEventListener('click', (e) => this._onClick(e));
     this.shadowRoot.addEventListener('input', (e) => this._onInput(e));
@@ -500,8 +757,22 @@ class WebsiteBrief extends HTMLElement {
     this.shadowRoot.addEventListener('drop', (e) => this._onDrop(e));
   }
 
+  static get observedAttributes() {
+    return ['lang'];
+  }
+
   connectedCallback() {
     this._loadConfig();
+  }
+
+  attributeChangedCallback(name, oldValue, newValue) {
+    if (name !== 'lang' || oldValue === newValue || !this.shadowRoot.querySelector('.main')) return;
+    this._config = mergeConfig(this._customConfig || this._fileConfig || {}, newValue);
+    this._renderShell();
+  }
+
+  get _lang() {
+    return this.getAttribute('lang') || 'en';
   }
 
   get config() {
@@ -510,7 +781,7 @@ class WebsiteBrief extends HTMLElement {
 
   set config(value) {
     this._customConfig = value;
-    this._config = mergeConfig(value);
+    this._config = mergeConfig(value, this._lang);
     if (this.isConnected) this.reset();
   }
 
@@ -544,11 +815,12 @@ class WebsiteBrief extends HTMLElement {
       const src = this.getAttribute('config-src');
       const inline = this.querySelector('script[type="application/json"]');
       try {
-        if (src) this._config = mergeConfig(await (await fetch(src)).json());
-        else if (inline) this._config = mergeConfig(JSON.parse(inline.textContent));
+        if (src) this._fileConfig = await (await fetch(src)).json();
+        else if (inline) this._fileConfig = JSON.parse(inline.textContent);
       } catch (err) {
         console.error('[website-brief] No se pudo cargar la configuración:', err);
       }
+      this._config = mergeConfig(this._fileConfig || {}, this._lang);
     }
     this._restore();
     this._renderShell();
@@ -620,7 +892,7 @@ class WebsiteBrief extends HTMLElement {
   }
 
   get _displayName() {
-    return this._data.name.trim() || 'tu negocio';
+    return this._data.name.trim() || this._config.copy.yourBusiness;
   }
 
   /** Colores efectivos: [primario, secundario, acento, fondo, texto]. */
@@ -642,7 +914,7 @@ class WebsiteBrief extends HTMLElement {
 
   /** Secciones recomendadas según tipo de negocio y objetivo. */
   _defaultPages() {
-    const set = new Set(['inicio', ...(this._business?.pages || ['servicios', 'sobre']), 'contacto']);
+    const set = new Set(['home', ...(this._business?.pages || ['services', 'about']), 'contact']);
     if (this._goal?.page) set.add(this._goal.page);
     const valid = this._config.pages.map((p) => p.id);
     return valid.filter((id) => set.has(id));
@@ -664,7 +936,7 @@ class WebsiteBrief extends HTMLElement {
     switch (this._step) {
       case 'business':
         if (!d.business) return ' ';
-        if (d.business === 'otro' && !d.businessOther.trim()) return copy.errorOther;
+        if (d.business === 'other' && !d.businessOther.trim()) return copy.errorOther;
         return '';
       case 'name':
         return d.name.trim() ? '' : copy.errorName;
@@ -737,7 +1009,7 @@ class WebsiteBrief extends HTMLElement {
     return {
       business: {
         type: d.business,
-        typeLabel: d.business === 'otro' ? d.businessOther.trim() : this._business?.label,
+        typeLabel: d.business === 'other' ? d.businessOther.trim() : this._business?.label,
         name: d.name.trim(),
         tagline: d.tagline.trim(),
       },
@@ -756,43 +1028,24 @@ class WebsiteBrief extends HTMLElement {
 
   /** Instrucciones listas para enviarle a la IA que construye el sitio. */
   _prompt(b) {
-    const lines = [
-      `Crea un sitio web completo en español para "${b.business.name}", un negocio de ${(b.business.typeLabel || 'servicios').toLowerCase()}.`,
-    ];
-    if (b.business.tagline) lines.push(`Descripción / eslogan: "${b.business.tagline}".`);
-    lines.push(
-      b.goal === 'auto'
-        ? 'Objetivo principal: elige el más adecuado para este tipo de negocio.'
-        : `Objetivo principal del sitio: ${b.goal.label.toLowerCase()}. El botón principal debe decir "${b.goal.cta}".`
-    );
-    lines.push(
-      {
-        provided: 'Logo: usa el logo proporcionado.',
-        create: 'Logo: el cliente no tiene logo; crea un logotipo simple y profesional.',
-        text: 'Logo: usa el nombre del negocio como logotipo de texto.',
-        auto: 'Logo: usa el nombre del negocio como logotipo de texto.',
-      }[b.logo]
-    );
-    lines.push(
-      b.colors === 'auto'
-        ? 'Colores: elige una paleta apropiada para el tipo de negocio y el estilo.'
-        : `Colores: primario ${b.colors.primary}, secundario ${b.colors.secondary}, acento ${b.colors.accent}, fondo ${b.colors.background}, texto ${b.colors.text}.`
-    );
+    const t = this._config.prompt;
+    const type = (b.business.typeLabel || t.fallbackType).toLowerCase();
+    const lines = [fill(t.intro, { name: b.business.name }), fill(t.type, { type })];
+    if (b.business.tagline) lines.push(fill(t.tagline, { tagline: b.business.tagline }));
+    lines.push(b.goal === 'auto' ? t.goalAuto : fill(t.goal, { goal: b.goal.label.toLowerCase(), cta: b.goal.cta }));
+    lines.push({ provided: t.logoProvided, create: t.logoCreate, text: t.logoText, auto: t.logoText }[b.logo]);
+    lines.push(b.colors === 'auto' ? t.colorsAuto : fill(t.colors, b.colors));
     lines.push(
       b.style === 'auto'
-        ? 'Estilo visual: elige el más adecuado para el negocio.'
-        : `Estilo visual: ${b.style.label.toLowerCase()} (${b.style.description.toLowerCase()}).`
+        ? t.styleAuto
+        : fill(t.style, { style: b.style.label.toLowerCase(), description: b.style.description.toLowerCase() })
     );
-    lines.push(`Secciones: ${b.pages.join(', ')}.`);
-    lines.push(
-      b.photos === 'provided'
-        ? 'Fotos: usa las fotos proporcionadas por el cliente.'
-        : `Fotos: usa fotos de stock profesionales relacionadas con ${(b.business.typeLabel || 'el negocio').toLowerCase()}.`
-    );
-    if (b.inspirationUrl) lines.push(`Sitio de referencia que le gusta al cliente: ${b.inspirationUrl}`);
-    if (b.notes) lines.push(`Notas del cliente: ${b.notes}`);
-    if (b.domain) lines.push(`Dominio: ${b.domain}`);
-    lines.push('El sitio debe ser responsive, rápido, accesible y optimizado para SEO local.');
+    lines.push(fill(t.pages, { pages: b.pages.join(', ') }));
+    lines.push(b.photos === 'provided' ? t.photosProvided : fill(t.photosStock, { type }));
+    if (b.inspirationUrl) lines.push(fill(t.url, { url: b.inspirationUrl }));
+    if (b.notes) lines.push(fill(t.notes, { notes: b.notes }));
+    if (b.domain) lines.push(fill(t.domain, { domain: b.domain }));
+    lines.push(t.outro);
     return lines.join('\n');
   }
 
@@ -906,7 +1159,7 @@ class WebsiteBrief extends HTMLElement {
       case 'business':
         d.business = value;
         this._afterChange(true);
-        if (value !== 'otro') this._autoAdvance();
+        if (value !== 'other') this._autoAdvance();
         else this.shadowRoot.querySelector('[data-bind="businessOther"]')?.focus();
         return;
       case 'tagline':
@@ -1118,6 +1371,7 @@ class WebsiteBrief extends HTMLElement {
   // Cada paso devuelve { html, skip?, noNext? }
 
   _step_business() {
+    const { copy } = this._config;
     const d = this._data;
     const options = this._config.businessTypes
       .map(
@@ -1127,25 +1381,26 @@ class WebsiteBrief extends HTMLElement {
       )
       .join('');
     const other =
-      d.business === 'otro'
-        ? `<label class="field" style="margin-top:16px"><span>¿Qué tipo de negocio es?</span>
-            <input type="text" data-bind="businessOther" value="${esc(d.businessOther)}" placeholder="Ej. taller mecánico, escuela de música…" autofocus /></label>`
+      d.business === 'other'
+        ? `<label class="field" style="margin-top:16px"><span>${esc(copy.otherLabel)}</span>
+            <input type="text" data-bind="businessOther" value="${esc(d.businessOther)}" placeholder="${esc(copy.otherPlaceholder)}" autofocus /></label>`
         : '';
-    return { html: `<div class="grid" role="group">${options}</div>${other}`, noNext: d.business !== 'otro' };
+    return { html: `<div class="grid" role="group">${options}</div>${other}`, noNext: d.business !== 'other' };
   }
 
   _step_name() {
+    const { copy } = this._config;
     const d = this._data;
     const examples = this._business?.examples || [];
     return {
       html: `
-        <label class="field"><span>Nombre del negocio</span>
-          <input class="big" type="text" data-bind="name" value="${esc(d.name)}" placeholder="Ej. Luna Café" autocomplete="organization" autofocus /></label>
-        <label class="field"><span>Descríbelo en una frase <em>(opcional)</em></span>
-          <input type="text" data-bind="tagline" value="${esc(d.tagline)}" placeholder="Lo que haces y para quién" /></label>
+        <label class="field"><span>${esc(copy.nameLabel)}</span>
+          <input class="big" type="text" data-bind="name" value="${esc(d.name)}" placeholder="${esc(copy.namePlaceholder)}" autocomplete="organization" autofocus /></label>
+        <label class="field"><span>${esc(copy.taglineLabel)} <em>${esc(copy.optional)}</em></span>
+          <input type="text" data-bind="tagline" value="${esc(d.tagline)}" placeholder="${esc(copy.taglinePlaceholder)}" /></label>
         ${
           examples.length
-            ? `<p class="hint">¿Sin ideas? Toca una:</p><div class="chips">${examples
+            ? `<p class="hint">${esc(copy.noIdeas)}</p><div class="chips">${examples
                 .map((ex) => `<button class="chip ghost" data-action="tagline" data-value="${esc(ex)}">${esc(ex)}</button>`)
                 .join('')}</div>`
             : ''
@@ -1166,21 +1421,22 @@ class WebsiteBrief extends HTMLElement {
   }
 
   _step_logo() {
+    const { copy } = this._config;
     const { logo } = this._data;
     if (logo.mode === 'upload' && logo.dataUrl) {
       return {
         html: `
           <div class="logo-box">
-            <img src="${logo.dataUrl}" alt="Tu logo" />
+            <img src="${logo.dataUrl}" alt="${esc(copy.logoAlt)}" />
             <div>
-              <strong>¡Se ve genial!</strong>
+              <strong>${esc(copy.logoGreat)}</strong>
               ${
                 logo.colors.length
-                  ? `<div class="hint" style="margin:4px 0 0">Tomamos estos colores de tu logo:</div>
+                  ? `<div class="hint" style="margin:4px 0 0">${esc(copy.logoColors)}</div>
                      <div class="swatches">${logo.colors.map((c) => `<i style="background:${c}"></i>`).join('')}</div>`
                   : ''
               }
-              <div style="margin-top:8px"><button class="link" data-action="logo-remove">Cambiar logo</button></div>
+              <div style="margin-top:8px"><button class="link" data-action="logo-remove">${esc(copy.logoChange)}</button></div>
             </div>
           </div>`,
       };
@@ -1188,18 +1444,18 @@ class WebsiteBrief extends HTMLElement {
     return {
       html: `
         <label class="drop" data-kind="logo">
-          <input type="file" accept="image/*" data-file="logo" aria-label="Subir logo" />
+          <input type="file" accept="image/*" data-file="logo" aria-label="${esc(copy.logoUpload)}" />
           <span class="big-icon" aria-hidden="true">⬆️</span>
-          <strong>Sube tu logo</strong>
-          <small>Arrastra aquí o toca para elegir · PNG, JPG o SVG</small>
+          <strong>${esc(copy.logoUpload)}</strong>
+          <small>${esc(copy.logoHint)}</small>
         </label>
-        <div class="or">o</div>
+        <div class="or">${esc(copy.or)}</div>
         <div class="grid wide" role="group">
           <button class="opt row" data-action="logo-mode" data-value="create" aria-pressed="${logo.mode === 'create'}">
-            <span class="emoji" aria-hidden="true">✨</span><span><strong>No tengo, créenme uno</strong></span>
+            <span class="emoji" aria-hidden="true">✨</span><span><strong>${esc(copy.logoCreate)}</strong></span>
           </button>
           <button class="opt row" data-action="logo-mode" data-value="text" aria-pressed="${logo.mode === 'text'}">
-            <span class="emoji" aria-hidden="true">🔤</span><span><strong>Usen solo el nombre</strong></span>
+            <span class="emoji" aria-hidden="true">🔤</span><span><strong>${esc(copy.logoText)}</strong></span>
           </button>
         </div>`,
       noNext: true,
@@ -1207,11 +1463,12 @@ class WebsiteBrief extends HTMLElement {
   }
 
   _step_colors() {
+    const { copy } = this._config;
     const { colors, logo } = this._data;
     const swatch = (list) => `<div class="strip">${list.slice(0, 3).map((c) => `<i style="background:${c}"></i>`).join('')}</div>`;
     const logoOpt = logo.colors.length
       ? `<button class="opt palette" data-action="color-mode" data-value="logo" aria-pressed="${colors.mode === 'logo'}">
-          ${swatch(this._paletteFromLogo(logo.colors))}<strong>De mi logo</strong></button>`
+          ${swatch(this._paletteFromLogo(logo.colors))}<strong>${esc(copy.fromLogo)}</strong></button>`
       : '';
     const palettes = this._config.palettes
       .map(
@@ -1220,14 +1477,14 @@ class WebsiteBrief extends HTMLElement {
       )
       .join('');
     const custom = `<button class="opt palette" data-action="color-mode" data-value="custom" aria-pressed="${colors.mode === 'custom'}">
-        <div class="strip" style="background:conic-gradient(from 90deg,#f43f5e,#f59e0b,#22c55e,#06b6d4,#6366f1,#d946ef,#f43f5e)"></div><strong>Elegir mis colores</strong></button>`;
+        <div class="strip" style="background:conic-gradient(from 90deg,#f43f5e,#f59e0b,#22c55e,#06b6d4,#6366f1,#d946ef,#f43f5e)"></div><strong>${esc(copy.customColors)}</strong></button>`;
     const pickers =
       colors.mode === 'custom'
-        ? `<div class="custom-colors">${['Principal', 'Secundario', 'Acento']
-            .map((l, i) => `<label><input type="color" data-custom="${i}" value="${colors.custom[i]}" />${l}</label>`)
+        ? `<div class="custom-colors">${copy.colorLabels
+            .map((l, i) => `<label><input type="color" data-custom="${i}" value="${colors.custom[i]}" />${esc(l)}</label>`)
             .join('')}</div>`
         : '';
-    return { html: `<div class="grid" role="group">${logoOpt}${palettes}${custom}</div>${pickers}`, skip: this._config.copy.decideForMe };
+    return { html: `<div class="grid" role="group">${logoOpt}${palettes}${custom}</div>${pickers}`, skip: copy.decideForMe };
   }
 
   _step_style() {
@@ -1252,32 +1509,33 @@ class WebsiteBrief extends HTMLElement {
       .join('');
     return {
       html: `<div class="chips" role="group">${chips}</div>
-        ${this._data.pages ? `<p class="hint" style="margin-top:14px"><button class="link" data-action="pages-reset">Volver a las recomendadas</button></p>` : ''}`,
+        ${this._data.pages ? `<p class="hint" style="margin-top:14px"><button class="link" data-action="pages-reset">${esc(this._config.copy.pagesReset)}</button></p>` : ''}`,
     };
   }
 
   _step_photos() {
+    const { copy } = this._config;
     const { photos } = this._data;
     const thumbs = photos.items.length
       ? `<div class="thumbs">${photos.items
-          .map((p, i) => `<figure><img src="${p.dataUrl}" alt="" /><button data-action="photo-remove" data-value="${i}" aria-label="Quitar foto">×</button></figure>`)
+          .map((p, i) => `<figure><img src="${p.dataUrl}" alt="" /><button data-action="photo-remove" data-value="${i}" aria-label="${esc(copy.removePhoto)}">×</button></figure>`)
           .join('')}</div>`
       : '';
     return {
       html: `
         <label class="drop" data-kind="photos">
-          <input type="file" accept="image/*" multiple data-file="photos" aria-label="Subir fotos" />
+          <input type="file" accept="image/*" multiple data-file="photos" aria-label="${esc(copy.photosUpload)}" />
           <span class="big-icon" aria-hidden="true">📷</span>
-          <strong>${photos.items.length ? 'Agregar más fotos' : 'Sube tus fotos'}</strong>
-          <small>Local, productos, equipo, trabajos… hasta 10</small>
+          <strong>${esc(photos.items.length ? copy.photosMore : copy.photosUpload)}</strong>
+          <small>${esc(copy.photosHint)}</small>
         </label>
         ${thumbs}
         ${
           photos.items.length
             ? ''
-            : `<div class="or">o</div>
+            : `<div class="or">${esc(copy.or)}</div>
                <button class="opt row" style="width:100%" data-action="stock" aria-pressed="${photos.mode === 'stock'}">
-                 <span class="emoji" aria-hidden="true">🖼️</span><span><strong>Usen fotos profesionales</strong><br /><small>Elegimos imágenes de calidad para tu negocio</small></span>
+                 <span class="emoji" aria-hidden="true">🖼️</span><span><strong>${esc(copy.stock)}</strong><br /><small>${esc(copy.stockHint)}</small></span>
                </button>`
         }`,
       noNext: !photos.items.length,
@@ -1285,47 +1543,50 @@ class WebsiteBrief extends HTMLElement {
   }
 
   _step_notes() {
+    const { copy } = this._config;
     const { notes } = this._data;
     return {
       html: `
-        <label class="field"><span>Una web que te guste <em>(opcional)</em></span>
+        <label class="field"><span>${esc(copy.urlLabel)} <em>${esc(copy.optional)}</em></span>
           <input type="url" data-bind="notes.url" value="${esc(notes.url)}" placeholder="https://…" inputmode="url" /></label>
-        <label class="field"><span>Cuéntanos lo que quieras <em>(opcional)</em></span>
-          <textarea data-bind="notes.text" placeholder="Tus servicios y precios, horarios, dirección, redes sociales, ideas…">${esc(notes.text)}</textarea></label>`,
-      skip: this._config.copy.skip,
+        <label class="field"><span>${esc(copy.notesLabel)} <em>${esc(copy.optional)}</em></span>
+          <textarea data-bind="notes.text" placeholder="${esc(copy.notesPlaceholder)}">${esc(notes.text)}</textarea></label>`,
+      skip: copy.skip,
     };
   }
 
   _step_contact() {
+    const { copy } = this._config;
     const { contact } = this._data;
     return {
       html: `
         ${this._renderReview()}
-        <label class="field"><span>Tu nombre</span>
+        <label class="field"><span>${esc(copy.contactName)}</span>
           <input type="text" data-bind="contact.name" value="${esc(contact.name)}" autocomplete="name" autofocus /></label>
-        <label class="field"><span>Correo electrónico</span>
-          <input type="email" data-bind="contact.email" value="${esc(contact.email)}" autocomplete="email" placeholder="tu@correo.com" /></label>
-        <label class="field"><span>WhatsApp <em>(opcional si dejas tu correo)</em></span>
+        <label class="field"><span>${esc(copy.contactEmail)}</span>
+          <input type="email" data-bind="contact.email" value="${esc(contact.email)}" autocomplete="email" placeholder="${esc(copy.emailPlaceholder)}" /></label>
+        <label class="field"><span>${esc(copy.contactPhone)} <em>${esc(copy.phoneOptional)}</em></span>
           <input type="tel" data-bind="contact.phone" value="${esc(contact.phone)}" autocomplete="tel" placeholder="+1 555 123 4567" /></label>
-        <label class="field"><span>¿Ya tienes dominio? <em>(opcional)</em></span>
-          <input type="text" data-bind="contact.domain" value="${esc(contact.domain)}" placeholder="minegocio.com" autocapitalize="off" /></label>
-        <div class="trust">🔒 Tus datos están seguros. Nunca los compartimos.</div>`,
+        <label class="field"><span>${esc(copy.domain)} <em>${esc(copy.optional)}</em></span>
+          <input type="text" data-bind="contact.domain" value="${esc(contact.domain)}" placeholder="${esc(copy.domainPlaceholder)}" autocapitalize="off" /></label>
+        <div class="trust">${esc(copy.trust)}</div>`,
     };
   }
 
   _renderReview() {
     const { copy } = this._config;
+    const r = copy.review;
     const d = this._data;
     const b = this._brief();
     const rows = [
-      ['business', 'Negocio', b.business.typeLabel],
-      ['name', 'Nombre', b.business.name],
-      ['goal', 'Objetivo', b.goal === 'auto' ? copy.decideForMe : b.goal.label],
-      ['logo', 'Logo', { provided: 'Subido', create: 'Crear uno', text: 'Solo el nombre', auto: copy.decideForMe }[b.logo]],
-      ['colors', 'Colores', b.colors === 'auto' ? copy.decideForMe : `<span class="swatches" style="justify-content:flex-end">${this._colors.slice(0, 3).map((c) => `<i style="background:${c}"></i>`).join('')}</span>`],
-      ['style', 'Estilo', b.style === 'auto' ? copy.decideForMe : b.style.label],
-      ['pages', 'Secciones', String(b.pages.length)],
-      ['photos', 'Fotos', d.photos.items.length ? String(d.photos.items.length) : 'Profesionales'],
+      ['business', r.business, b.business.typeLabel],
+      ['name', r.name, b.business.name],
+      ['goal', r.goal, b.goal === 'auto' ? copy.decideForMe : b.goal.label],
+      ['logo', r.logo, { provided: r.uploaded, create: r.createOne, text: r.nameOnly, auto: copy.decideForMe }[b.logo]],
+      ['colors', r.colors, b.colors === 'auto' ? copy.decideForMe : `<span class="swatches" style="justify-content:flex-end">${this._colors.slice(0, 3).map((c) => `<i style="background:${c}"></i>`).join('')}</span>`],
+      ['style', r.style, b.style === 'auto' ? copy.decideForMe : b.style.label],
+      ['pages', r.pages, String(b.pages.length)],
+      ['photos', r.photos, d.photos.items.length ? String(d.photos.items.length) : r.stock],
     ].filter(([step]) => this._steps.includes(step));
 
     return `<details class="review"><summary>${esc(copy.yourAnswers)}</summary><ul>
@@ -1358,6 +1619,7 @@ class WebsiteBrief extends HTMLElement {
 
   /** Mini maqueta del sitio con los colores, estilo, logo, nombre y secciones elegidos. */
   _mock(style, { compact = false } = {}) {
+    const { copy } = this._config;
     const d = this._data;
     const [p, s, a, bg, tx] = this._colors;
     const vars = [
@@ -1366,13 +1628,13 @@ class WebsiteBrief extends HTMLElement {
       `--tt:${style.upper ? 'uppercase' : 'none'}`, `--ls:${style.tracking || 'normal'}`,
     ].join(';');
 
-    const name = d.name.trim() || 'Tu negocio';
-    const tagline = d.tagline.trim() || this._business?.examples?.[0] || 'Aquí va lo que hace especial a tu negocio';
-    const cta = this._goal?.cta || 'Contáctanos';
+    const name = d.name.trim() || copy.mockName;
+    const tagline = d.tagline.trim() || this._business?.examples?.[0] || copy.mockTagline;
+    const cta = this._goal?.cta || copy.mockCta;
     const photo = d.photos.items[0]?.dataUrl;
     const logo = d.logo.mode === 'upload' && d.logo.dataUrl ? `<img src="${d.logo.dataUrl}" alt="" />` : esc(name);
     const sections = this._pages
-      .filter((id) => id !== 'inicio')
+      .filter((id) => id !== 'home')
       .slice(0, 6)
       .map((id) => `<div class="mock-sec">${esc(this._config.pages.find((x) => x.id === id)?.label || id)}</div>`)
       .join('');
@@ -1395,4 +1657,4 @@ if (!customElements.get('website-brief')) {
   customElements.define('website-brief', WebsiteBrief);
 }
 
-export { WebsiteBrief, DEFAULT_CONFIG };
+export { WebsiteBrief, DEFAULT_CONFIG, LOCALES };
