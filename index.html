@@ -3,39 +3,64 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Flow of Services · Demo</title>
+    <title>Website Brief · Demo</title>
     <style>
       body {
         margin: 0;
-        padding: 32px 16px;
-        background: #f1f5f9;
+        padding: 40px 16px;
+        background: #eef0f6;
         font-family: system-ui, sans-serif;
+        color: #0f172a;
       }
-      main { max-width: 560px; margin: 0 auto; }
+      main { max-width: 1100px; margin: 0 auto; }
+      header { text-align: center; margin-bottom: 28px; }
+      header h1 { margin: 0 0 8px; font-size: clamp(1.6rem, 4vw, 2.4rem); }
+      header p { margin: 0; color: #64748b; }
+      details { margin-top: 32px; }
+      summary { cursor: pointer; font-weight: 600; }
       pre {
-        background: #0f172a; color: #e2e8f0; padding: 12px; border-radius: 8px;
-        font-size: 12px; overflow-x: auto; white-space: pre-wrap;
+        background: #0f172a; color: #e2e8f0; padding: 16px; border-radius: 10px;
+        font-size: 12px; overflow-x: auto; white-space: pre-wrap; word-break: break-word;
       }
     </style>
   </head>
   <body>
     <main>
-      <!-- Así se inserta el componente en cualquier página -->
-      <flow-of-services id="flow" config-src="examples/servicios.json"></flow-of-services>
+      <header>
+        <h1>Tu sitio web, listo en minutos</h1>
+        <p>Responde unas preguntas rápidas y nuestra IA lo construye por ti.</p>
+      </header>
 
-      <h3>Último evento</h3>
-      <pre id="log">—</pre>
+      <!-- Así se inserta el componente en cualquier página -->
+      <website-brief id="brief"></website-brief>
+
+      <details open>
+        <summary>Datos que recibe la página (solo para desarrollo)</summary>
+        <pre id="log">Completa el flujo para ver el resultado…</pre>
+      </details>
     </main>
 
-    <script type="module" src="src/flow-of-services.js"></script>
+    <script type="module" src="src/website-brief.js"></script>
     <script>
-      const flow = document.getElementById('flow');
+      const brief = document.getElementById('brief');
       const log = document.getElementById('log');
-      ['fos:step', 'fos:submit', 'fos:success', 'fos:error'].forEach((name) =>
-        flow.addEventListener(name, (e) => {
-          log.textContent = name + '\n' + JSON.stringify(e.detail, null, 2);
-        })
-      );
+
+      brief.addEventListener('wb:step', (e) => {
+        log.textContent = 'wb:step → ' + JSON.stringify(e.detail);
+      });
+
+      brief.addEventListener('wb:submit', (e) => {
+        const { prompt, brief: data, assets } = e.detail;
+        const short = {
+          ...assets,
+          logo: assets.logo && { ...assets.logo, dataUrl: assets.logo.dataUrl.slice(0, 40) + '…' },
+          photos: assets.photos.map((p) => ({ ...p, dataUrl: p.dataUrl.slice(0, 40) + '…' })),
+        };
+        log.textContent =
+          'PROMPT PARA LA IA\n\n' + prompt +
+          '\n\nBRIEF\n\n' + JSON.stringify(data, null, 2) +
+          '\n\nARCHIVOS\n\n' + JSON.stringify(short, null, 2);
+      });
     </script>
   </body>
 </html>
